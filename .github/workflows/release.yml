@@ -73,7 +73,8 @@ jobs:
 
       - name: Create NSIS Installer
         shell: cmd
-        run: makensis /DAPP_VERSION=${{ steps.ver.outputs.version }} build\installer.nsi
+        run: |
+          "C:\Program Files (x86)\NSIS\makensis.exe" /DAPP_VERSION=${{ steps.ver.outputs.version }} build\installer.nsi
 
       - name: Rename installer with version
         shell: bash

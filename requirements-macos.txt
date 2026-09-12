@@ -9,6 +9,8 @@
 # Without it, the tray icon will not appear on macOS.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# pystray macOS backend — AppKit bridge
+# pystray macOS backend — AppKit/Foundation bridge
+# pyobjc-framework-Cocoa pulls in pyobjc-core automatically.
+# pyobjc (meta-package) ensures all required ObjC bridges are present.
 pyobjc-framework-Cocoa>=9.0
-pyobjc-framework-objc>=9.0
+pyobjc>=9.0

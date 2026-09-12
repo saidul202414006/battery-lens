@@ -18,7 +18,7 @@ Unicode True
 !define APP_NAME        "Battery Lens"
 !define APP_EXE         "BatteryLens.exe"
 !define APP_PUBLISHER   "Battery Lens"
-!define APP_URL         "https://github.com/your-username/battery-lens"
+!define APP_URL         "https://github.com/saidul202414006/battery-lens"
 !define BUNDLE_ID       "BatteryLens"
 !define DIST_DIR        "..\dist\BatteryLens"
 !define ASSETS_DIR      "..\assets"
