@@ -1,0 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Battery Lens — macOS Additional Requirements
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Install these in addition to requirements.txt:
+#   pip install -r requirements.txt -r requirements-macos.txt
+#
+# pyobjc is required by pystray for its macOS system tray (AppKit) backend.
+# Without it, the tray icon will not appear on macOS.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# pystray macOS backend — AppKit bridge
+pyobjc-framework-Cocoa>=9.0
+pyobjc-framework-objc>=9.0

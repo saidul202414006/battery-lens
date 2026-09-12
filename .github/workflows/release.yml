@@ -1,0 +1,313 @@
+name: Build & Release
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers:
+#   - Push a version tag: git tag v1.0.0 && git push origin v1.0.0
+#     → Builds all platforms AND creates a GitHub Release with download links
+#   - Manual trigger via GitHub Actions UI (for testing builds without release)
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Required to create GitHub Releases
+
+env:
+  PYTHON_VERSION: '3.11'
+
+# ═══════════════════════════════════════════════════════════════════
+# JOB 1: Windows — PyInstaller → NSIS Installer
+# ═══════════════════════════════════════════════════════════════════
+jobs:
+  build-windows:
+    name: 🪟 Windows Installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            V="${{ github.ref_name }}"; V="${V#v}"
+          else
+            V=$(python -c "from version import __version__; print(__version__)")
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building version: $V"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-windows.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller battery_lens.spec `
+            --distpath dist `
+            --workpath build/pyinstaller_work `
+            --noconfirm `
+            --log-level WARN
+
+      - name: Verify PyInstaller output
+        shell: bash
+        run: |
+          ls -la dist/BatteryLens/
+          test -f dist/BatteryLens/BatteryLens.exe && echo "✓ BatteryLens.exe found" || (echo "✗ Missing BatteryLens.exe" && exit 1)
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Create NSIS Installer
+        shell: cmd
+        run: makensis /DAPP_VERSION=${{ steps.ver.outputs.version }} build\installer.nsi
+
+      - name: Rename installer with version
+        shell: bash
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          mv dist/BatteryLens-Setup.exe "dist/BatteryLens-${V}-Windows-Setup.exe"
+          echo "✓ Installer: dist/BatteryLens-${V}-Windows-Setup.exe ($(du -sh "dist/BatteryLens-${V}-Windows-Setup.exe" | cut -f1))"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/BatteryLens-*-Windows-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+# ═══════════════════════════════════════════════════════════════════
+# JOB 2: Linux — PyInstaller → AppImage
+# ═══════════════════════════════════════════════════════════════════
+  build-linux:
+    name: 🐧 Linux AppImage
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            V="${{ github.ref_name }}"; V="${V#v}"
+          else
+            V=$(python -c "from version import __version__; print(__version__)")
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-tk libfuse2 fuse
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller battery_lens.spec \
+            --distpath dist \
+            --workpath build/pyinstaller_work \
+            --noconfirm \
+            --log-level WARN
+
+      - name: Verify PyInstaller output
+        run: |
+          ls -la dist/BatteryLens/
+          test -f dist/BatteryLens/BatteryLens && echo "✓ BatteryLens binary found" || (echo "✗ Missing" && exit 1)
+
+      - name: Download appimagetool
+        run: |
+          wget -q \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -O /usr/local/bin/appimagetool
+          chmod +x /usr/local/bin/appimagetool
+
+      - name: Build AppImage
+        run: bash build/build_appimage.sh ${{ steps.ver.outputs.version }}
+
+      - name: Verify AppImage
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          F="dist/BatteryLens-${V}-x86_64.AppImage"
+          test -f "$F" && echo "✓ AppImage: $(du -sh "$F" | cut -f1)" || (echo "✗ AppImage not found" && ls dist/ && exit 1)
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/BatteryLens-*-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
+# ═══════════════════════════════════════════════════════════════════
+# JOB 3: macOS — PyInstaller → .app → DMG
+# ═══════════════════════════════════════════════════════════════════
+  build-macos:
+    name: 🍎 macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            V="${{ github.ref_name }}"; V="${V#v}"
+          else
+            V=$(python -c "from version import __version__; print(__version__)")
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install system dependencies
+        run: |
+          brew install python-tk@3.11 create-dmg || true
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-macos.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller battery_lens.spec \
+            --distpath dist \
+            --workpath build/pyinstaller_work \
+            --noconfirm \
+            --log-level WARN
+
+      - name: Verify PyInstaller output
+        run: |
+          ls -la dist/
+          test -d dist/BatteryLens.app && echo "✓ BatteryLens.app found" || (echo "✗ Missing .app" && exit 1)
+
+      - name: Build DMG
+        run: bash build/create_dmg.sh ${{ steps.ver.outputs.version }}
+
+      - name: Verify DMG
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          F="dist/BatteryLens-${V}-macOS.dmg"
+          test -f "$F" && echo "✓ DMG: $(du -sh "$F" | cut -f1)" || (echo "✗ DMG not found" && ls dist/ && exit 1)
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: dist/BatteryLens-*-macOS.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+# ═══════════════════════════════════════════════════════════════════
+# JOB 4: Create GitHub Release (only on version tag push)
+# ═══════════════════════════════════════════════════════════════════
+  release:
+    name: 🚀 Publish Release
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          V="${{ github.ref_name }}"; V="${V#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: |
+          echo "Release assets:"
+          ls -lh release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Battery Lens v${{ steps.ver.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          body: |
+            ## Battery Lens v${{ steps.ver.outputs.version }}
+
+            **Battery monitoring and anomaly detection for laptops** — runs quietly in the system tray.
+            All data stays on your device. No internet required. No account needed.
+
+            ---
+
+            ### ⬇ Download
+
+            Pick the file for your operating system:
+
+            | Platform | File |
+            |----------|------|
+            | 🪟 **Windows 10/11** | `BatteryLens-${{ steps.ver.outputs.version }}-Windows-Setup.exe` |
+            | 🐧 **Linux (x64)** | `BatteryLens-${{ steps.ver.outputs.version }}-x86_64.AppImage` |
+            | 🍎 **macOS 12+** | `BatteryLens-${{ steps.ver.outputs.version }}-macOS.dmg` |
+
+            ---
+
+            ### 🚀 Quick Start
+
+            **Windows:** Run the installer → app appears in the system tray (bottom-right)
+
+            **Linux:**
+            ```bash
+            chmod +x BatteryLens-*.AppImage
+            ./BatteryLens-*.AppImage
+            ```
+            > If the tray icon is missing, install: `sudo apt install gir1.2-appindicator3-0.1`
+
+            **macOS:** Open DMG → drag Battery Lens to Applications → launch from Launchpad → appears in menu bar
+
+            ---
+
+            ### ✨ Features
+            - Real-time battery percentage, drain rate, and charge speed
+            - Anomaly alerts (faster drain than your personal baseline)
+            - Sleep drain detection (wakes up and checks what happened while sleeping)
+            - Long-term health tracking and degradation prediction
+            - Process correlation (which apps were running during high-drain events)
+            - Evidence-based recommendations for better battery habits
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: false

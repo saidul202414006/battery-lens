@@ -1,0 +1,24 @@
+"""
+Core constants for Battery Lens application.
+"""
+
+# Default Settings
+DEFAULT_POLL_INTERVAL_SECONDS = 30
+DEFAULT_SLEEP_DRAIN_THRESHOLD_PERCENT_PER_HOUR = 3.0
+DEFAULT_ANOMALY_DRAIN_THRESHOLD_PERCENT_ABOVE_BASELINE = 30.0
+DEFAULT_HISTORY_RETENTION_DAYS = 90
+
+# Severities
+SEVERITY_WARNING = "warning"
+SEVERITY_CRITICAL = "critical"
+
+# Anomaly Types
+ANOMALY_HIGH_DRAIN = "high_drain"
+ANOMALY_SLEEP_DRAIN = "sleep_drain"
+ANOMALY_SLOW_CHARGE = "slow_charge"
+ANOMALY_HEALTH_DECLINE = "health_decline"
+
+# Platforms
+PLATFORM_WINDOWS = "windows"
+PLATFORM_LINUX = "linux"
+PLATFORM_MACOS = "macos"

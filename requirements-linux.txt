@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Battery Lens — Linux System Dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The packages in requirements.txt are installable via pip.
+# However, on Linux, Battery Lens also requires the following SYSTEM packages
+# that must be installed via your distribution's package manager.
+#
+# These packages provide the tray icon (AppIndicator3/libayatana) and desktop
+# notifications (libnotify) that the application depends on.
+#
+# ─── Ubuntu / Debian / Linux Mint ────────────────────────────────────────────
+#   sudo apt install \
+#       python3-tk \
+#       gir1.2-appindicator3-0.1 \
+#       libnotify-bin
+#
+#   On Ubuntu 22.04+, GNOME dropped AppIndicator support by default.
+#   You may also need:
+#   sudo apt install gnome-shell-extension-appindicator
+#   Then enable it: gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com
+#
+# ─── Fedora / RHEL / CentOS Stream ───────────────────────────────────────────
+#   sudo dnf install \
+#       python3-tkinter \
+#       libappindicator-gtk3 \
+#       libnotify
+#
+# ─── Arch Linux / Manjaro ─────────────────────────────────────────────────────
+#   sudo pacman -S \
+#       tk \
+#       libappindicator-gtk3 \
+#       libnotify
+#
+# ─── openSUSE ─────────────────────────────────────────────────────────────────
+#   sudo zypper install \
+#       python3-tk \
+#       libappindicator3-1 \
+#       libnotify-tools
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# No additional pip packages are required for the Linux adapter.
+# psutil and the standard library are sufficient for /sys/class/power_supply/
+# ─────────────────────────────────────────────────────────────────────────────
